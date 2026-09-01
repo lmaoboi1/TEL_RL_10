@@ -1,0 +1,672 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Apple Fortune Wheel</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800;900&display=swap');
+
+        :root {
+            --apple-blue: #0071e3;
+            --apple-blue-hover: #0077ED;
+            --bg-color: #f5f5f7;
+            --surface-color: #ffffff;
+            --text-main: #1d1d1f;
+            --text-muted: #86868b;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            overflow-x: hidden;
+            margin: 0;
+            padding: 0;
+            min-height: 100vh;
+        }
+
+        /* Soft Animated Background */
+        .bg-blobs {
+            position: fixed;
+            inset: 0;
+            z-index: -1;
+            overflow: hidden;
+            pointer-events: none;
+            background: linear-gradient(135deg, #f5f5f7 0%, #ffffff 100%);
+        }
+
+        .blob-1 {
+            position: absolute;
+            top: -10%;
+            left: -10%;
+            width: 50vw;
+            height: 50vw;
+            background: radial-gradient(circle, rgba(0, 113, 227, 0.05) 0%, rgba(255,255,255,0) 70%);
+            animation: float 20s ease-in-out infinite alternate;
+        }
+
+        .blob-2 {
+            position: absolute;
+            bottom: -20%;
+            right: -10%;
+            width: 60vw;
+            height: 60vw;
+            background: radial-gradient(circle, rgba(200, 200, 210, 0.3) 0%, rgba(255,255,255,0) 70%);
+            animation: float 25s ease-in-out infinite alternate-reverse;
+        }
+
+        @keyframes float {
+            0% { transform: translate(0, 0) scale(1); }
+            100% { transform: translate(5%, 5%) scale(1.1); }
+        }
+
+        /* Typography */
+        .headline-gradient {
+            background: linear-gradient(135deg, #1d1d1f 0%, #434345 100%);
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+        }
+
+        /* Wheel Container */
+        .wheel-wrapper {
+            position: relative;
+            width: 340px;
+            height: 340px;
+            margin: 0 auto;
+            border-radius: 50%;
+            padding: 12px;
+            background: #ffffff;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.08), 0 0 0 1px rgba(0,0,0,0.02);
+            animation: idle-float 8s ease-in-out infinite;
+        }
+        
+        @media (min-width: 768px) {
+            .wheel-wrapper {
+                width: 450px;
+                height: 450px;
+                padding: 16px;
+            }
+        }
+        
+        @media (min-width: 1024px) {
+            .wheel-wrapper {
+                width: 550px;
+                height: 550px;
+                padding: 18px;
+            }
+        }
+
+        @keyframes idle-float {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-10px); }
+        }
+
+        /* Spinning Dashed Rim */
+        .wheel-rim-animated {
+            position: absolute;
+            inset: 6px;
+            border-radius: 50%;
+            border: 2px dashed rgba(0, 113, 227, 0.2);
+            animation: spin-rim 20s linear infinite;
+            pointer-events: none;
+        }
+
+        @keyframes spin-rim {
+            100% { transform: rotate(360deg); }
+        }
+
+        /* The actual wheel */
+        .wheel {
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            position: relative;
+            overflow: hidden;
+            box-shadow: inset 0 4px 15px rgba(0,0,0,0.05);
+            background: #fff;
+        }
+
+        .wheel-segment-content {
+            position: absolute;
+            top: 0;
+            left: 50%;
+            width: 120px; 
+            height: 50%; 
+            transform-origin: bottom center;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-start;
+            padding-top: 20px;
+            z-index: 10;
+        }
+
+        @media (min-width: 1024px) {
+            .wheel-segment-content {
+                width: 150px;
+                padding-top: 30px;
+            }
+        }
+
+        .wheel-segment-content img {
+            width: auto;
+            height: 60px;
+            object-fit: contain;
+            filter: drop-shadow(0 8px 10px rgba(0,0,0,0.15));
+            transition: transform 0.3s;
+        }
+
+        @media (min-width: 1024px) {
+            .wheel-segment-content img {
+                height: 90px;
+            }
+        }
+
+        /* Top Pointer */
+        .wheel-pointer-wrapper {
+            position: absolute;
+            top: -20px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 30;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .wheel-pointer-shadow {
+            width: 40px;
+            height: 40px;
+            background: white;
+            border-radius: 50%;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.15);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            border: 1px solid rgba(0,0,0,0.05);
+        }
+
+        .wheel-pointer {
+            width: 0;
+            height: 0;
+            border-left: 10px solid transparent;
+            border-right: 10px solid transparent;
+            border-top: 18px solid var(--apple-blue);
+            transform: translateY(6px);
+        }
+
+        /* Clean Hub */
+        .wheel-hub {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 80px;
+            height: 80px;
+            background: #ffffff;
+            border-radius: 50%;
+            z-index: 20;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1), inset 0 -2px 5px rgba(0,0,0,0.05);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            border: 1px solid rgba(0,0,0,0.05);
+        }
+
+        .wheel-hub img {
+            width: 32px;
+            height: 32px;
+            object-fit: contain;
+            opacity: 0.8;
+        }
+
+        /* Primary Button */
+        .btn-primary {
+            background-color: var(--apple-blue);
+            color: white;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 4px 14px rgba(0, 113, 227, 0.3);
+        }
+
+        .btn-primary:hover {
+            background-color: var(--apple-blue-hover);
+            transform: scale(1.02);
+            box-shadow: 0 6px 20px rgba(0, 113, 227, 0.4);
+        }
+
+        .btn-primary:active {
+            transform: scale(0.98);
+        }
+
+        .btn-primary:disabled {
+            background-color: #d2d2d7;
+            color: #86868b;
+            box-shadow: none;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        /* Modal Overrides for Light Theme */
+        .modal-overlay {
+            background: rgba(255, 255, 255, 0.6);
+            backdrop-filter: blur(15px);
+            -webkit-backdrop-filter: blur(15px);
+        }
+
+        .clean-modal {
+            background: #ffffff;
+            border: 1px solid rgba(0,0,0,0.05);
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.15);
+        }
+        
+        .modal-view {
+            transition: opacity 0.3s ease;
+        }
+        
+        .map-container {
+            border-radius: 1rem;
+            overflow: hidden;
+            border: 1px solid rgba(0,0,0,0.08);
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.05);
+        }
+    </style>
+</head>
+<body class="relative">
+
+    <!-- Background Elements -->
+    <div class="bg-blobs">
+        <div class="blob-1"></div>
+        <div class="blob-2"></div>
+    </div>
+
+    <!-- Main Layout: Centered & Minimalist -->
+    <main class="relative z-10 w-full min-h-screen flex flex-col items-center justify-center p-6 gap-10 max-w-[1000px] mx-auto">
+        
+        <!-- Minimal Typography -->
+        <div class="flex flex-col items-center text-center mt-8">
+            <h1 class="text-4xl sm:text-5xl lg:text-6xl font-black tracking-tight leading-[1.1] headline-gradient">
+                Apple Fortune
+            </h1>
+        </div>
+
+        <!-- The Wheel -->
+        <div class="flex justify-center items-center w-full">
+            <div class="wheel-wrapper">
+                <!-- Dashed Rotating Rim -->
+                <div class="wheel-rim-animated"></div>
+                
+                <!-- Top-aligned Pointer -->
+                <div class="wheel-pointer-wrapper">
+                    <div class="wheel-pointer-shadow">
+                        <div class="wheel-pointer"></div>
+                    </div>
+                </div>
+                
+                <!-- The Rotating Wheel -->
+                <div id="wheel" class="wheel">
+                    <!-- Segments injected by JS -->
+                </div>
+                
+                <!-- Clean Center Hub -->
+                <div class="wheel-hub">
+                    <img src="https://cdn-icons-png.flaticon.com/256/0/747.png" alt="Apple Logo" style="filter: opacity(0.8);">
+                </div>
+            </div>
+        </div>
+        
+        <!-- Call to Action Under Wheel -->
+        <div class="pt-2 pb-8 w-full sm:w-auto">
+            <button id="spin-btn" class="btn-primary font-semibold py-4 px-12 rounded-full text-xl w-full sm:w-auto min-w-[240px] flex items-center justify-center tracking-wide">
+                Start Spin
+            </button>
+        </div>
+        
+    </main>
+
+    <!-- Result Modal (Clean Light Theme) -->
+    <div id="result-modal" class="fixed inset-0 modal-overlay hidden items-center justify-center z-50 opacity-0 transition-opacity duration-500">
+        <div class="clean-modal rounded-[2rem] p-8 sm:p-12 max-w-md w-full mx-4 transform scale-95 translate-y-8 transition-all duration-500 overflow-hidden" id="modal-content">
+            
+            <!-- View 1: Device Result -->
+            <div id="view-result" class="flex flex-col items-center text-center modal-view">
+                <p class="text-xs font-bold text-gray-400 uppercase tracking-widest mb-6">Result</p>
+                
+                <div id="result-item-container" class="flex flex-col items-center justify-center w-full aspect-square max-w-[260px] p-6 mb-8 transition-all duration-700 bg-gray-50 rounded-2xl">
+                    <img id="result-img" src="" alt="Device" class="max-h-48 object-contain mb-4 drop-shadow-xl hover:scale-110 transition-transform duration-500">
+                    <div id="result-rarity" class="text-[10px] font-bold uppercase tracking-widest mb-2 opacity-60"></div>
+                    <p class="text-2xl font-extrabold text-gray-900 leading-tight" id="result-name"></p>
+                </div>
+                
+                <button id="claim-btn" class="btn-primary font-semibold py-4 px-8 rounded-full w-full text-lg shadow-lg">
+                    Claim Device
+                </button>
+            </div>
+
+            <!-- View 2: Location Map -->
+            <div id="view-map" class="text-center modal-view hidden">
+                <h2 class="text-2xl font-extrabold text-gray-900 mb-2">Delivery Location</h2>
+                <p class="text-gray-500 mb-6 text-sm">Pinpoint your address for courier dispatch.</p>
+                
+                <div id="delivery-map" class="w-full h-64 map-container mb-6"></div>
+                
+                <button id="confirm-location-btn" disabled class="btn-primary w-full py-4 px-8 rounded-full text-lg font-semibold disabled:bg-gray-200 disabled:text-gray-400">
+                    Confirm Address
+                </button>
+            </div>
+
+            <!-- View 3: Success & Countdown -->
+            <div id="view-success" class="text-center modal-view hidden flex flex-col items-center">
+                <div class="w-20 h-20 bg-green-50 rounded-full flex items-center justify-center mb-6 shadow-sm border border-green-100">
+                    <svg class="w-10 h-10 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"></path></svg>
+                </div>
+                <h2 class="text-2xl font-extrabold text-gray-900 mb-2">Order Confirmed</h2>
+                <p class="text-gray-500 mb-8 text-sm">Your new hardware is being prepared.</p>
+                
+                <div class="bg-gray-50 w-full p-6 rounded-2xl mb-8 border border-gray-100">
+                    <p class="text-xs text-gray-400 font-bold uppercase tracking-widest mb-2">Estimated Dispatch</p>
+                    <div id="countdown-timer" class="text-4xl font-black text-gray-900 tracking-tighter tabular-nums">
+                        24:00:00
+                    </div>
+                </div>
+                
+                <button id="close-modal-btn" class="text-blue-600 hover:text-blue-800 font-semibold text-sm transition-colors">
+                    Return to Homepage
+                </button>
+            </div>
+
+        </div>
+    </div>
+
+    <script>
+        // Data Definition - (Logic untouched, design colors adjusted for light theme wheel slices)
+        const items = [
+            { name: 'iPhone 16 Teal', image: 'https://ya-ua.fra1.digitaloceanspaces.com/uploads/previews/iphone-16-128gb-teal-myed3-ua1.png', rarity: 'common', textCol: 'text-gray-800', bgCol: '#f8fafc', chance: 40 },
+            { name: 'iPhone 16 Plus White', image: 'https://ya-ua.fra1.digitaloceanspaces.com/uploads/previews/iphone-16-plus-256gb-white-e-sim1.webp', rarity: 'common', textCol: 'text-gray-800', bgCol: '#f1f5f9', chance: 30 },
+            { name: 'iPhone 16 Pro Max Desert', image: 'https://ya-ua.fra1.digitaloceanspaces.com/uploads/previews/iphone-16-pro-max-512gb-desert-titanium-ua1.png', rarity: 'uncommon', textCol: 'text-blue-700', bgCol: '#e0f2fe', chance: 15 },
+            { name: 'iPhone 17 Pro Max Silver', image: 'https://ya-ua.fra1.digitaloceanspaces.com/uploads/previews/iphone-17-pro-max-256-gb-silver4.webp', rarity: 'rare', textCol: 'text-purple-700', bgCol: '#f3e8ff', chance: 10 },
+            { name: 'iPhone Air Space Black', image: 'https://ya-ua.fra1.digitaloceanspaces.com/uploads/previews/iphone-17-air-256gb-space-black-now1.webp', rarity: 'epic', textCol: 'text-pink-700', bgCol: '#fce7f3', chance: 4 },
+            { name: 'iPhone 17 Pro Max Orange', image: 'https://ya-ua.fra1.digitaloceanspaces.com/uploads/previews/iphone-17-pro-max-512-gb-cosmic-orange-mfyt41.webp', rarity: 'legendary', textCol: 'text-amber-700', bgCol: '#fef3c7', chance: 1 }
+        ];
+
+        // Wheel Configuration
+        const numSegments = 10;
+        const segmentAngle = 360 / numSegments;
+        let wheelItems = [];
+        let currentRotation = 0;
+        let isSpinning = false;
+
+        // DOM Elements
+        const wheelEl = document.getElementById('wheel');
+        const spinBtn = document.getElementById('spin-btn');
+        const resultModal = document.getElementById('result-modal');
+        const modalContent = document.getElementById('modal-content');
+        
+        const viewResult = document.getElementById('view-result');
+        const viewMap = document.getElementById('view-map');
+        const viewSuccess = document.getElementById('view-success');
+        
+        const claimBtn = document.getElementById('claim-btn');
+        const confirmLocationBtn = document.getElementById('confirm-location-btn');
+        const closeModalBtn = document.getElementById('close-modal-btn');
+        
+        let map = null;
+        let mapMarker = null;
+        let countdownInterval = null;
+
+        function setupWheel() {
+            wheelEl.innerHTML = '';
+            wheelItems = [];
+
+            // Dead Zone styling for light theme
+            const deadZone = { name: 'Dead Zone', isDeadZone: true, bgCol: '#ffffff', textCol: 'text-gray-300' }; 
+            
+            items.forEach(item => wheelItems.push(item));
+            
+            for(let i = wheelItems.length; i < numSegments; i++) {
+                wheelItems.push(deadZone);
+            }
+
+            // Shuffle array
+            for (let i = wheelItems.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [wheelItems[i], wheelItems[j]] = [wheelItems[j], wheelItems[i]];
+            }
+
+            let gradientStops = [];
+            let currentAngle = 0;
+
+            wheelItems.forEach((item, index) => {
+                const startAngle = currentAngle;
+                const endAngle = currentAngle + segmentAngle;
+                
+                // Solid color slice with a tiny divider line via gradient
+                gradientStops.push(`${item.bgCol} ${startAngle}deg ${endAngle - 0.5}deg`);
+                gradientStops.push(`rgba(0,0,0,0.05) ${endAngle - 0.5}deg ${endAngle}deg`); 
+                
+                currentAngle += segmentAngle;
+
+                const contentDiv = document.createElement('div');
+                contentDiv.className = 'wheel-segment-content';
+                
+                // Position item in the center of its slice
+                const sliceCenter = index * segmentAngle + (segmentAngle / 2);
+                contentDiv.style.transform = `translateX(-50%) rotate(${sliceCenter}deg)`;
+
+                if (item.isDeadZone) {
+                    contentDiv.innerHTML = `<div class="text-2xl lg:text-3xl mt-4 font-light text-gray-300">✕</div>`;
+                } else {
+                    contentDiv.innerHTML = `<img src="${item.image}" alt="Phone" onerror="this.onerror=null; this.src='https://placehold.co/100x150/transparent/94a3b8?text=Phone';">`;
+                }
+                
+                wheelEl.appendChild(contentDiv);
+            });
+
+            wheelEl.style.background = `conic-gradient(${gradientStops.join(', ')})`;
+        }
+
+        function spinWheel() {
+            if (isSpinning) return;
+            isSpinning = true;
+            
+            spinBtn.disabled = true;
+            spinBtn.innerHTML = '<svg class="animate-spin h-5 w-5 text-gray-500 mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> Processing...';
+
+            // Fixed logic to always find the legendary winner as per original logic
+            const winningIndex = wheelItems.findIndex(i => i.rarity === 'legendary');
+            const winner = wheelItems[winningIndex];
+
+            // MATH FOR TOP POINTER (0 degrees in CSS rotation is exactly at the top)
+            const sliceCenterAngle = winningIndex * segmentAngle + (segmentAngle / 2);
+            
+            // Randomize position within the winning slice slightly to look natural
+            const randomOffset = (Math.random() - 0.5) * (segmentAngle * 0.7); 
+            
+            // Target angle to land the slice center at the TOP (360 degrees)
+            let targetAngleWithin360 = (360 - sliceCenterAngle + randomOffset) % 360;
+            if (targetAngleWithin360 < 0) {
+                targetAngleWithin360 += 360; // Ensure positive modulo
+            }
+
+            const baseSpins = 7; 
+            const spinDuration = 7000; // 7 seconds
+
+            // Calculate total rotation
+            const currentBase360 = Math.floor(currentRotation / 360) * 360;
+            let nextRotationTarget = currentBase360 + (360 * baseSpins) + targetAngleWithin360;
+            
+            // Ensure we spin forward enough
+            if (nextRotationTarget < currentRotation + (360 * 3)) {
+                nextRotationTarget += 360 * baseSpins;
+            }
+
+            // Apply smooth Ease-Out cubic bezier curve for realistic friction
+            wheelEl.style.transition = `transform ${spinDuration}ms cubic-bezier(0.1, 0.9, 0.2, 1)`;
+            wheelEl.style.transform = `rotate(${nextRotationTarget}deg)`;
+            
+            currentRotation = nextRotationTarget;
+
+            // Wait for animation + a small delay before showing modal
+            setTimeout(() => {
+                showModalWithWinner(winner);
+            }, spinDuration + 500); 
+        }
+
+        function showModalWithWinner(winner) {
+            document.getElementById('result-img').src = winner.image;
+            
+            const nameEl = document.getElementById('result-name');
+            nameEl.textContent = winner.name;
+            nameEl.className = `text-2xl font-extrabold text-center leading-tight mt-1 ${winner.textCol}`;
+            
+            const rarityEl = document.getElementById('result-rarity');
+            rarityEl.textContent = winner.rarity;
+            rarityEl.className = `text-[11px] font-bold uppercase tracking-widest mb-2 ${winner.textCol}`;
+
+            // Show Modal with updated transition styles
+            resultModal.classList.remove('hidden');
+            resultModal.classList.add('flex');
+            
+            void resultModal.offsetWidth; // Reflow for animation trigger
+            
+            resultModal.classList.remove('opacity-0');
+            modalContent.classList.remove('scale-95', 'translate-y-8');
+            modalContent.classList.add('scale-100', 'translate-y-0');
+
+            // Reset views
+            viewResult.classList.remove('hidden');
+            viewMap.classList.add('hidden');
+            viewSuccess.classList.add('hidden');
+
+            // Reset Button State
+            isSpinning = false;
+            spinBtn.disabled = false;
+            spinBtn.innerHTML = 'Spin Again';
+        }
+
+        function switchView(hideView, showViewId) {
+            hideView.classList.add('hidden');
+            const showElement = document.getElementById(showViewId);
+            showElement.classList.remove('hidden');
+            
+            if (showViewId === 'view-map') {
+                initMap();
+            } else if (showViewId === 'view-success') {
+                triggerConfetti();
+                startCountdown();
+            }
+        }
+
+        function initMap() {
+            setTimeout(() => {
+                if (!map) {
+                    map = L.map('delivery-map').setView([39.8283, -98.5795], 4);
+                    
+                    // Native light map tiles look perfect with the new theme
+                    L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+                        attribution: '&copy; OpenStreetMap contributors'
+                    }).addTo(map);
+
+                    map.on('click', function(e) {
+                        if (mapMarker) {
+                            mapMarker.setLatLng(e.latlng);
+                        } else {
+                            mapMarker = L.marker(e.latlng).addTo(map);
+                        }
+                        confirmLocationBtn.disabled = false;
+                    });
+                } else {
+                    map.invalidateSize();
+                }
+            }, 100);
+        }
+
+        function triggerConfetti() {
+            const duration = 3000;
+            const end = Date.now() + duration;
+
+            (function frame() {
+                // Adjusted colors for light theme (Apple-esque blues and silvers)
+                confetti({
+                    particleCount: 5,
+                    angle: 60,
+                    spread: 60,
+                    origin: { x: 0 },
+                    colors: ['#0071e3', '#42a5f5', '#e2e8f0', '#ffffff'] 
+                });
+                confetti({
+                    particleCount: 5,
+                    angle: 120,
+                    spread: 60,
+                    origin: { x: 1 },
+                    colors: ['#0071e3', '#42a5f5', '#e2e8f0', '#ffffff']
+                });
+
+                if (Date.now() < end) {
+                    requestAnimationFrame(frame);
+                }
+            }());
+        }
+
+        function startCountdown() {
+            let timeLeft = 24 * 60 * 60; 
+            const timerEl = document.getElementById('countdown-timer');
+            
+            if (countdownInterval) clearInterval(countdownInterval);
+            
+            const updateTimer = () => {
+                const h = Math.floor(timeLeft / 3600).toString().padStart(2, '0');
+                const m = Math.floor((timeLeft % 3600) / 60).toString().padStart(2, '0');
+                const s = (timeLeft % 60).toString().padStart(2, '0');
+                
+                timerEl.textContent = `${h}:${m}:${s}`;
+                
+                if (timeLeft > 0) {
+                    timeLeft--;
+                } else {
+                    clearInterval(countdownInterval);
+                }
+            };
+            
+            updateTimer(); 
+            countdownInterval = setInterval(updateTimer, 1000);
+        }
+
+        function closeModal() {
+            resultModal.classList.add('opacity-0');
+            modalContent.classList.remove('scale-100', 'translate-y-0');
+            modalContent.classList.add('scale-95', 'translate-y-8');
+            
+            setTimeout(() => {
+                resultModal.classList.add('hidden');
+                resultModal.classList.remove('flex');
+                
+                if (mapMarker) {
+                    map.removeLayer(mapMarker);
+                    mapMarker = null;
+                }
+                confirmLocationBtn.disabled = true;
+                setupWheel();
+                
+            }, 500); 
+        }
+
+        // Event Listeners Registration
+        spinBtn.addEventListener('click', spinWheel);
+        claimBtn.addEventListener('click', () => switchView(viewResult, 'view-map'));
+        confirmLocationBtn.addEventListener('click', () => switchView(viewMap, 'view-success'));
+        closeModalBtn.addEventListener('click', closeModal);
+        
+        // Boot up
+        setupWheel();
+    </script>
+</body>
+</html>
